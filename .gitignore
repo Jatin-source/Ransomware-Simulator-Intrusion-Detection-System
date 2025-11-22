@@ -1,0 +1,56 @@
+# ===============================
+# Python Cache & Temp Files
+# ===============================
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+*.tmp
+
+# ===============================
+# Virtual Environment
+# ===============================
+venv/
+
+# ===============================
+# Sensitive Keys & Credentials
+# ===============================
+config/key.bin
+config/creds.json
+
+# Keep the folder but ignore only secrets
+# (Do NOT ignore the entire config/ folder)
+# ===============================
+
+# ===============================
+# Logs
+# ===============================
+monitor/alerts.log
+monitor/events.log
+
+# ===============================
+# Encrypted Ransomware Output
+# ===============================
+*.locked
+sandbox/*.locked
+
+# ===============================
+# Demo / temp files
+# ===============================
+STOP_ALL
+
+# Backup sandbox (optional to include)
+sandbox_backup/
+
+# ===============================
+# IDE / Editor Files
+# ===============================
+.vscode/
+.idea/
+*.swp
+
+# ===============================
+# OS Junk
+# ===============================
+.DS_Store
+Thumbs.db
