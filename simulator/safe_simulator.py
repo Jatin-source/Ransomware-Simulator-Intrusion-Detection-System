@@ -5,17 +5,20 @@ safe_simulator.py - Direct file encryption/decryption demo
 - Uses Fernet symmetric encryption
 - --encrypt to lock files
 - --decrypt to restore from .locked files
+- Restores from both sandbox AND quarantine
 """
-import argparse, sys, logging, subprocess
+import argparse, sys, logging, subprocess, shutil
 from pathlib import Path
 from cryptography.fernet import Fernet
 
 # --- Paths (use exact absolute paths for safety)
 SANDBOX = Path("/home/jatin/Desktop/Ransomware-Simulator-and-IDS/sandbox")
+QUARANTINE_DIR = Path("/home/jatin/Desktop/Ransomware-Simulator-and-IDS/quarantine")
 CONFIG_DIR = Path("/home/jatin/.config/Ransomware-Simulator-and-IDS")
 KEY_PATH = CONFIG_DIR / "key.bin"
 STOP_FILE = Path("/home/jatin/Desktop/Ransomware-Simulator-and-IDS/STOP_ALL")
 LOG = Path("/home/jatin/Desktop/Ransomware-Simulator-and-IDS/monitor/events.log")
+RESTORE_FLAG = SANDBOX / ".restore_mode"
 LOG.parent.mkdir(parents=True, exist_ok=True)
 logging.basicConfig(filename=str(LOG), level=logging.INFO, format="%(asctime)s %(message)s")
 
@@ -98,21 +101,42 @@ def restore_files(dry_run=False):
     if STOP_FILE.exists():
         print("STOP_ALL present — aborting.")
         return
+    
+    # enable restore mode
+    RESTORE_FLAG.touch()
+    
     f = ensure_key()
     files_decrypted = 0
 
+    # Restore from sandbox
     for p in sorted(SANDBOX.rglob("*.locked")):
         if decrypt_file(p, f, dry_run):
             files_decrypted += 1
             print(f"Decrypted: {p}")
     
+    # NEW: Also restore from quarantine
+    for p in sorted(QUARANTINE_DIR.rglob("*.locked")):
+        if decrypt_file(p, f, dry_run):
+            dest = SANDBOX / p.stem  # original filename without .locked
+            if not dry_run:
+                shutil.move(str(p.with_suffix("")), str(SANDBOX / p.stem))
+            files_decrypted += 1
+            print(f"Restored from quarantine: {dest}")
+    
     if files_decrypted == 0:
         print("No .locked files found to decrypt")
+        # disable restore mode
+        if RESTORE_FLAG.exists():
+            RESTORE_FLAG.unlink()
         return
 
     note = SANDBOX / "RANSOM_NOTE.txt"
     if note.exists() and not dry_run:
         note.unlink()
+    
+    # disable restore mode
+    if RESTORE_FLAG.exists():
+        RESTORE_FLAG.unlink()
     
     print(f"Decrypted {files_decrypted} files (dry_run={dry_run})")
 

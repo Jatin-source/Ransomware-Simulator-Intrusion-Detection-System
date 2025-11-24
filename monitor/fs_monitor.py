@@ -10,7 +10,7 @@ Improved fs_monitor:
 - Email + logging behavior unchanged
 """
 
-import time, logging, subprocess, smtplib, json
+import time, logging, subprocess, smtplib, json, requests
 from collections import deque
 from datetime import datetime
 from pathlib import Path
@@ -74,38 +74,53 @@ def desktop_notify(title, message):
 
 
 # =====================================================
-# EMAIL SENDER (unchanged)
+# EMAIL SENDER (Mailjet API)
 # =====================================================
 def send_email(subject, body_text, body_html=None):
+    """Send email through Mailjet REST API."""
+
     if not CONFIG_CREDS.exists():
         logging.info("No creds.json found — skipping email")
         return
 
     try:
         creds = json.loads(CONFIG_CREDS.read_text())
-        smtp_server = creds["smtp"]
-        port = creds.get("port", 587)
-        user = creds["user"]
-        passwd = creds["pass"]
-        toaddr = creds.get("to", user)
 
-        msg = MIMEMultipart("alternative")
-        msg["From"] = user
-        msg["To"] = toaddr
-        msg["Subject"] = subject
-        msg.attach(MIMEText(body_text, "plain"))
-        if body_html:
-            msg.attach(MIMEText(body_html, "html"))
+        if creds.get("service") != "mailjet":
+            logging.warning("creds.json not configured for Mailjet")
+            return
 
-        server = smtplib.SMTP(smtp_server, port, timeout=10)
-        server.starttls()
-        server.login(user, passwd)
-        server.sendmail(user, [toaddr], msg.as_string())
-        server.quit()
-        logging.info("Email sent to %s", toaddr)
+        api_key = creds.get("api_key")
+        secret_key = creds.get("secret_key")
+        from_email = creds.get("from_email")
+        to_email = creds.get("to", from_email)
+
+        payload = {
+            "Messages": [
+                {
+                    "From": {"Email": from_email, "Name": "IDS Monitor"},
+                    "To": [{"Email": to_email}],
+                    "Subject": subject,
+                    "TextPart": body_text,
+                    "HTMLPart": body_html or f"<pre>{body_text}</pre>"
+                }
+            ]
+        }
+
+        response = requests.post(
+            "https://api.mailjet.com/v3.1/send",
+            auth=(api_key, secret_key),
+            json=payload,
+            timeout=10
+        )
+
+        if response.status_code in (200, 201):
+            logging.info("Mailjet: Email sent successfully")
+        else:
+            logging.error("Mailjet error: %s %s", response.status_code, response.text)
 
     except Exception as e:
-        logging.exception("Email error: %s", e)
+        logging.exception("Mailjet send_email() error: %s", e)
 
 
 # =====================================================
